@@ -190,6 +190,10 @@ public:
     Eigen::Vector3f GetImuVwb();
     bool isImuPreintegrated();
 
+    // Local ROS RGB-D adapter: diagnostic access; iterate maps only after Shutdown().
+    Atlas* GetAtlasForDiagnostics() const { return mpAtlas; }
+    void SaveCameraTrajectoryForMap(const std::string &filename, Map* map);
+
     // For debugging
     double GetTimeFromIMUInit();
     bool isLost();

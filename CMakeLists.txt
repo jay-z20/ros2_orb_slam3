@@ -201,4 +201,11 @@ install(PROGRAMS
 )
 
 
+# Local adapter: synchronized RGB-D and raw IMU, plus auditable trajectory export.
+find_package(nav_msgs REQUIRED)
+add_executable(office_rgbd_imu src/office_rgbd_imu.cpp)
+ament_target_dependencies(office_rgbd_imu rclcpp sensor_msgs nav_msgs cv_bridge)
+target_link_libraries(office_rgbd_imu orb_slam3_lib)
+install(TARGETS office_rgbd_imu RUNTIME DESTINATION lib/${PROJECT_NAME})
+
 ament_package()

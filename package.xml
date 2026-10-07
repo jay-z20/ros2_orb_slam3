@@ -43,4 +43,5 @@
   <export>
     <build_type>ament_cmake</build_type>
   </export>
+  <depend>nav_msgs</depend>
 </package>

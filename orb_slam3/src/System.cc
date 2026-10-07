@@ -521,20 +521,11 @@ void System::Shutdown()
             usleep(5000);
     }*/
 
-    // Wait until all thread have effectively stopped
-    /*while(!mpLocalMapper->isFinished() || !mpLoopCloser->isFinished() || mpLoopCloser->isRunningGBA())
-    {
-        if(!mpLocalMapper->isFinished())
-            cout << "mpLocalMapper is not finished" << endl;*/
-        /*if(!mpLoopCloser->isFinished())
-            cout << "mpLoopCloser is not finished" << endl;
-        if(mpLoopCloser->isRunningGBA()){
-            cout << "mpLoopCloser is running GBA" << endl;
-            cout << "break anyway..." << endl;
-            break;
-        }*/
-        /*usleep(5000);
-    }*/
+    // Local fix: exports must not race the optimizer. Upstream had this wait disabled.
+    if (mpViewer) mpViewer->RequestFinish();
+    while (!mpLocalMapper->isFinished() || !mpLoopCloser->isFinished()
+           || mpLoopCloser->isRunningGBA() || (mpViewer && !mpViewer->isFinished()))
+        usleep(5000);
 
     if(!mStrSaveAtlasToFile.empty())
     {
@@ -555,6 +546,31 @@ void System::Shutdown()
 bool System::isShutDown() {
     unique_lock<mutex> lock(mMutexReset);
     return mbShutDown;
+}
+
+// Local export helper: preserve camera reference frame and never merge disconnected maps.
+// This does not change tracking, initialization, or optimization.
+void System::SaveCameraTrajectoryForMap(const std::string &filename, Map* map)
+{
+    std::ofstream f(filename);
+    f << std::fixed << std::setprecision(9);
+    auto ref = mpTracker->mlpReferences.begin();
+    auto stamp = mpTracker->mlFrameTimes.begin();
+    auto lost = mpTracker->mlbLost.begin();
+    for (auto pose = mpTracker->mlRelativeFramePoses.begin();
+         pose != mpTracker->mlRelativeFramePoses.end(); ++pose, ++ref, ++stamp, ++lost) {
+        if (*lost || !*ref) continue;
+        KeyFrame* kf = *ref;
+        Sophus::SE3f Trw;
+        while (kf && kf->isBad()) { Trw = Trw * kf->mTcp; kf = kf->GetParent(); }
+        if (!kf || kf->GetMap() != map) continue;
+        Trw = Trw * kf->GetPose();
+        Sophus::SE3f Twc = ((*pose) * Trw).inverse();
+        Eigen::Vector3f t = Twc.translation();
+        Eigen::Quaternionf q = Twc.unit_quaternion();
+        f << *stamp << " " << t.x() << " " << t.y() << " " << t.z()
+          << " " << q.x() << " " << q.y() << " " << q.z() << " " << q.w() << "\n";
+    }
 }
 
 void System::SaveTrajectoryTUM(const string &filename)
